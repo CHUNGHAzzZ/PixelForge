@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/PixelForge">
+        <file>qml/Main.qml</file>
+    </qresource>
+</RCC>
