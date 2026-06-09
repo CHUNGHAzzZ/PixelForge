@@ -32,9 +32,11 @@ foreach(_header IN LISTS MOC_HEADERS)
             -I"${QT6_INCLUDE_DIR}/QtQuick"
             -I"${QT6_INCLUDE_DIR}/QtOpenGL"
             -I"${CMAKE_CURRENT_SOURCE_DIR}"
+            --include "${CMAKE_CURRENT_SOURCE_DIR}/Common/QmlProperty.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/${_header}"
             -o "${_moc_output}"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${_header}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/Common/QmlProperty.hpp"
         VERBATIM
     )
 
@@ -64,6 +66,9 @@ set(PIXELFORGE_SOURCES
     App/ApplicationController.h
     Canvas/CanvasItem.cpp
     Canvas/CanvasItem.h
+    Common/QmlProperty.hpp
+    Common/QmlTypeRegistration.cpp
+    Common/QmlTypeRegistration.h
     qml.qrc
     qml/Main.qml
     ${GENERATED_MOC_SOURCES}
@@ -76,6 +81,9 @@ set(PIXELFORGE_LOCAL_SOURCES
     App/ApplicationController.h
     Canvas/CanvasItem.cpp
     Canvas/CanvasItem.h
+    Common/QmlProperty.hpp
+    Common/QmlTypeRegistration.cpp
+    Common/QmlTypeRegistration.h
     qml.qrc
     qml/Main.qml
 )

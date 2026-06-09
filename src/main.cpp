@@ -1,5 +1,5 @@
 #include "App/ApplicationController.h"
-#include "Canvas/CanvasItem.h"
+#include "Common/QmlTypeRegistration.h"
 
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
@@ -31,7 +31,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("PixelForge"));
     QGuiApplication::setOrganizationName(QStringLiteral("PixelForge"));
 
-    qmlRegisterType<CanvasItem>("PixelForge.Canvas", 1, 0, "CanvasView");
+    PixelForge::registerQmlTypes();
 
     ApplicationController controller;
 
