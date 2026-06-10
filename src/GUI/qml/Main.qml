@@ -185,18 +185,9 @@ Window {
         anchors.bottom: statusBar.top
         color: "#1B1D20"
 
-        Rectangle {
+        CanvasRender {
+            id: canvas
             anchors.fill: parent
-            anchors.margins: 24
-            color: "#111315"
-            border.color: "#30343A"
-
-            CanvasItem {
-                id: canvas
-                anchors.centerIn: parent
-                width: Math.min(parent.width, 960)
-                height: Math.min(parent.height, 640)
-            }
         }
 
         DropArea {

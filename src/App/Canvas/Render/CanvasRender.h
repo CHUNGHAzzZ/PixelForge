@@ -1,12 +1,12 @@
 #pragma once
 
-#include "App/Canvas/Object/BaseObject.h"
-#include "App/Canvas/Object/CanvasObject.h"
-#include "Common/QmlProperty.hpp"
+#include "App/Canvas/Render/CanvasTypes.hpp"
+#include "Utils/QmlProperty.hpp"
 
 #include <QColor>
 #include <QPointF>
 #include <QQuickFramebufferObject>
+#include <QRectF>
 #include <QSizeF>
 #include <QTransform>
 #include <QUrl>
@@ -17,17 +17,21 @@
 class QMouseEvent;
 class QWheelEvent;
 
-class CanvasItem : public QQuickFramebufferObject
+namespace PixelForge {
+
+class CanvasRender : public QQuickFramebufferObject
 {
     Q_OBJECT
 
 public:
-    explicit CanvasItem(QQuickItem *parent = nullptr);
+    explicit CanvasRender(QQuickItem *parent = nullptr);
 
     Renderer *createRenderer() const override;
     const CanvasObject &canvasObject() const;
-    const QTransform &canvasTransform() const;
-    std::vector<std::unique_ptr<BaseObject>> cloneObjects() const;
+    const QTransform &viewportTransform() const;
+    ObjectId selectedObjectId() const;
+    CanvasObjectList cloneObjects() const;
+    SceneDirtyRectList consumeDirtySceneRects(bool *allDirty);
 
     PIXELFORGE_QML_QT_PROPERTY(QSizeF, documentSize, DocumentSize)
     PIXELFORGE_QML_VALUE_PROPERTY(qreal, zoom, Zoom)
@@ -53,17 +57,33 @@ protected:
 
 private:
     ObjectId nextObjectId();
+    BaseObject *objectById(ObjectId id);
+    const BaseObject *objectById(ObjectId id) const;
+    BaseObject *hitTestObject(const QPointF &canvasPoint);
+    void setSelectedObjectId(ObjectId id);
     void clearObjects();
     void addObject(std::unique_ptr<BaseObject> object);
-    void updateCanvasTransform();
+    void markAllSceneDirty();
+    void markSceneDirty(const QRectF &sceneRect);
+    void markObjectDirty(const QRectF &beforeBounds, const QRectF &afterBounds);
+    void updateViewportTransform();
     void updateInteractionState();
 
     CanvasObject m_canvas;
+    QTransform m_viewportTransform;
     qreal m_zoom {1.0};
     QPointF m_contentOffset;
     bool m_interactive {true};
     bool m_isPanning {false};
+    bool m_isMovingObject {false};
     QPointF m_lastPanPosition;
+    QPointF m_lastObjectMoveCanvasPosition;
+    QPointF m_objectGrabLocalPosition;
+    ObjectId m_selectedObjectId {InvalidObjectId};
     ObjectId m_nextObjectId {1};
-    std::vector<std::unique_ptr<BaseObject>> m_objects;
+    CanvasObjectList m_objects;
+    bool m_allCanvasDirty {true};
+    SceneDirtyRectList m_dirtySceneRects;
 };
+
+}

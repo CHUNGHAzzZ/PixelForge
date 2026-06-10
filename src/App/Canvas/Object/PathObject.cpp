@@ -4,6 +4,8 @@
 
 #include <algorithm>
 
+namespace PixelForge {
+
 PathObject::PathObject(const QPainterPath &path)
     : m_path(path)
 {
@@ -119,4 +121,6 @@ void PathObject::bumpGeometryRevision()
     if (m_geometryRevision == 0) {
         m_geometryRevision = 1;
     }
+}
+
 }

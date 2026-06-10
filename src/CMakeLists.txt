@@ -13,8 +13,8 @@ set(QT6_TOOL_PATHS "${QT6_RUNTIME_DIR}" "${QT6_BIN_DIR}" "$ENV{PATH}")
 cmake_path(CONVERT "${QT6_TOOL_PATHS}" TO_NATIVE_PATH_LIST QT6_TOOL_PATH_ENV)
 
 set(MOC_HEADERS
-    App/ApplicationController.h
-    App/Canvas/Render/CanvasItem.h
+    App/PixelForgeApplication.h
+    App/Canvas/Render/CanvasRender.h
 )
 
 set(GENERATED_MOC_SOURCES)
@@ -34,11 +34,11 @@ foreach(_header IN LISTS MOC_HEADERS)
             -I"${QT6_INCLUDE_DIR}/QtQuick"
             -I"${QT6_INCLUDE_DIR}/QtOpenGL"
             -I"${CMAKE_CURRENT_SOURCE_DIR}"
-            --include "${CMAKE_CURRENT_SOURCE_DIR}/Common/QmlProperty.hpp"
+            --include "${CMAKE_CURRENT_SOURCE_DIR}/Utils/QmlProperty.hpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/${_header}"
             -o "${_moc_output}"
         DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${_header}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/Common/QmlProperty.hpp"
+                "${CMAKE_CURRENT_SOURCE_DIR}/Utils/QmlProperty.hpp"
         VERBATIM
     )
 
@@ -47,6 +47,8 @@ endforeach()
 
 set(QRC_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/GUI/qml.qrc")
 set(GENERATED_QRC_SOURCE "${GENERATED_DIR}/qrc_qml.cpp")
+set(RESOURCES_QRC_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/Resources/resources.qrc")
+set(GENERATED_RESOURCES_QRC_SOURCE "${GENERATED_DIR}/qrc_resources.cpp")
 
 add_custom_command(
     OUTPUT "${GENERATED_QRC_SOURCE}"
@@ -62,12 +64,34 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT "${GENERATED_RESOURCES_QRC_SOURCE}"
+    COMMAND ${CMAKE_COMMAND} -E env "PATH=${QT6_TOOL_PATH_ENV}"
+        "${QT6_RCC_EXECUTABLE}"
+        --name resources
+        "${RESOURCES_QRC_SOURCE}"
+        -o "${GENERATED_RESOURCES_QRC_SOURCE}"
+    DEPENDS
+        "${RESOURCES_QRC_SOURCE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Shader/CanvasTile.vert"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Shader/CanvasTile.frag"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Resources"
+    VERBATIM
+)
+
 set(PIXELFORGE_SOURCES
     main.cpp
-    App/ApplicationController.cpp
-    App/ApplicationController.h
-    App/Canvas/Render/CanvasItem.cpp
-    App/Canvas/Render/CanvasItem.h
+    App/PixelForgeApplication.cpp
+    App/PixelForgeApplication.h
+    App/Canvas/Render/CanvasRender.cpp
+    App/Canvas/Render/CanvasRender.h
+    App/Canvas/Render/CanvasRenderer.cpp
+    App/Canvas/Render/CanvasRenderer.h
+    App/Canvas/Render/CanvasTextureTile.cpp
+    App/Canvas/Render/CanvasTextureTile.h
+    App/Canvas/Render/CanvasTileCache.cpp
+    App/Canvas/Render/CanvasTileCache.h
+    App/Canvas/Render/CanvasTypes.hpp
     App/Canvas/Object/BaseObject.cpp
     App/Canvas/Object/BaseObject.h
     App/Canvas/Object/CanvasObject.cpp
@@ -77,21 +101,36 @@ set(PIXELFORGE_SOURCES
     App/Canvas/Object/ObjectTypes.hpp
     App/Canvas/Object/PathObject.cpp
     App/Canvas/Object/PathObject.h
-    Common/QmlProperty.hpp
-    Common/QmlTypeRegistration.cpp
-    Common/QmlTypeRegistration.h
+    App/Canvas/Common.cpp
+    App/Canvas/Common.hpp
+    Utils/Logger.cpp
+    Utils/Logger.h
+    Utils/QmlProperty.hpp
+    Utils/QmlTypeRegistration.cpp
+    Utils/QmlTypeRegistration.h
+    Resources/resources.qrc
+    Resources/Shader/CanvasTile.vert
+    Resources/Shader/CanvasTile.frag
     GUI/qml.qrc
     GUI/qml/Main.qml
     ${GENERATED_MOC_SOURCES}
     ${GENERATED_QRC_SOURCE}
+    ${GENERATED_RESOURCES_QRC_SOURCE}
 )
 
 set(PIXELFORGE_LOCAL_SOURCES
     main.cpp
-    App/ApplicationController.cpp
-    App/ApplicationController.h
-    App/Canvas/Render/CanvasItem.cpp
-    App/Canvas/Render/CanvasItem.h
+    App/PixelForgeApplication.cpp
+    App/PixelForgeApplication.h
+    App/Canvas/Render/CanvasRender.cpp
+    App/Canvas/Render/CanvasRender.h
+    App/Canvas/Render/CanvasRenderer.cpp
+    App/Canvas/Render/CanvasRenderer.h
+    App/Canvas/Render/CanvasTextureTile.cpp
+    App/Canvas/Render/CanvasTextureTile.h
+    App/Canvas/Render/CanvasTileCache.cpp
+    App/Canvas/Render/CanvasTileCache.h
+    App/Canvas/Render/CanvasTypes.hpp
     App/Canvas/Object/BaseObject.cpp
     App/Canvas/Object/BaseObject.h
     App/Canvas/Object/CanvasObject.cpp
@@ -101,15 +140,22 @@ set(PIXELFORGE_LOCAL_SOURCES
     App/Canvas/Object/ObjectTypes.hpp
     App/Canvas/Object/PathObject.cpp
     App/Canvas/Object/PathObject.h
-    Common/QmlProperty.hpp
-    Common/QmlTypeRegistration.cpp
-    Common/QmlTypeRegistration.h
+    App/Canvas/Common.cpp
+    App/Canvas/Common.hpp
+    Utils/Logger.cpp
+    Utils/Logger.h
+    Utils/QmlProperty.hpp
+    Utils/QmlTypeRegistration.cpp
+    Utils/QmlTypeRegistration.h
+    Resources/resources.qrc
+    Resources/Shader/CanvasTile.vert
+    Resources/Shader/CanvasTile.frag
     GUI/qml.qrc
     GUI/qml/Main.qml
 )
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${PIXELFORGE_LOCAL_SOURCES})
-source_group("Generated" FILES ${GENERATED_MOC_SOURCES} ${GENERATED_QRC_SOURCE})
+source_group("Generated" FILES ${GENERATED_MOC_SOURCES} ${GENERATED_QRC_SOURCE} ${GENERATED_RESOURCES_QRC_SOURCE})
 
 add_executable(PixelForge
     ${PIXELFORGE_SOURCES}

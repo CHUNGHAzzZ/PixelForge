@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+namespace PixelForge {
+
 ObjectType CanvasObject::type() const
 {
     return ObjectType::Canvas;
@@ -122,6 +124,11 @@ QPointF CanvasObject::viewportToLocal(const QPointF &viewportPoint) const
     return canvasToLocal(viewportPoint);
 }
 
+void CanvasObject::paintBoard(QPainter &painter) const
+{
+    paintLocal(painter);
+}
+
 std::unique_ptr<BaseObject> CanvasObject::clone() const
 {
     return std::make_unique<CanvasObject>(*this);
@@ -159,4 +166,6 @@ void CanvasObject::paintLocal(QPainter &painter) const
     painter.setPen(borderPen);
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(bounds.adjusted(0.5, 0.5, -0.5, -0.5));
+}
+
 }

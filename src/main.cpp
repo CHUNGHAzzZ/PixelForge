@@ -1,5 +1,6 @@
-#include "App/ApplicationController.h"
-#include "Common/QmlTypeRegistration.h"
+#include "App/PixelForgeApplication.h"
+#include "Utils/Logger.h"
+#include "Utils/QmlTypeRegistration.h"
 
 #include <QGuiApplication>
 #include <QDebug>
@@ -34,17 +35,25 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName(QStringLiteral("PixelForge"));
     QGuiApplication::setOrganizationName(QStringLiteral("PixelForge"));
 
+    PixelForge::Logger::init();
+    PixelForge::Logger::info("PixelForge application started");
+
     PixelForge::registerQmlTypes();
 
-    ApplicationController controller;
+    PixelForge::PixelForgeApplication controller;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty(QStringLiteral("appController"), &controller);
     engine.load(QUrl(QStringLiteral("qrc:/PixelForge/qml/Main.qml")));
 
     if (engine.rootObjects().isEmpty()) {
+        PixelForge::Logger::fatal("Failed to load QML root object");
+        PixelForge::Logger::shutdown();
         return -1;
     }
 
-    return app.exec();
+    const int result = app.exec();
+    PixelForge::Logger::info("PixelForge application exited");
+    PixelForge::Logger::shutdown();
+    return result;
 }

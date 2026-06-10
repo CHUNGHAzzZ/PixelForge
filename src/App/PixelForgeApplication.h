@@ -4,13 +4,15 @@
 #include <QString>
 #include <QUrl>
 
-class ApplicationController final : public QObject
+namespace PixelForge {
+
+class PixelForgeApplication final : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString documentName READ documentName NOTIFY documentNameChanged)
 
 public:
-    explicit ApplicationController(QObject *parent = nullptr);
+    explicit PixelForgeApplication(QObject *parent = nullptr);
 
     QString documentName() const;
 
@@ -26,3 +28,5 @@ private:
 
     QString m_documentName;
 };
+
+}

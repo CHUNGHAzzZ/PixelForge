@@ -5,6 +5,8 @@
 #include <QColor>
 #include <QSizeF>
 
+namespace PixelForge {
+
 class CanvasObject final : public BaseObject
 {
 public:
@@ -40,6 +42,7 @@ public:
     QPointF localToViewport(const QPointF &localPoint) const;
     QPointF viewportToLocal(const QPointF &viewportPoint) const;
 
+    void paintBoard(QPainter &painter) const;
     std::unique_ptr<BaseObject> clone() const override;
 
 protected:
@@ -55,3 +58,5 @@ private:
     QColor m_gridColorB {QStringLiteral("#E1E4E8")};
     QColor m_borderColor {QStringLiteral("#30343A")};
 };
+
+}

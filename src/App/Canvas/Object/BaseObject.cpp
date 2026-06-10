@@ -3,6 +3,8 @@
 #include <QPainter>
 #include <QtGlobal>
 
+namespace PixelForge {
+
 ObjectId BaseObject::id() const
 {
     return m_id;
@@ -100,4 +102,6 @@ void BaseObject::paint(QPainter &painter) const
     painter.setTransform(m_transform, true);
     paintLocal(painter);
     painter.restore();
+}
+
 }

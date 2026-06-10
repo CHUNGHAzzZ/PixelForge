@@ -6,6 +6,8 @@
 #include <QSizeF>
 #include <QString>
 
+namespace PixelForge {
+
 class ImageObject final : public BaseObject
 {
 public:
@@ -37,3 +39,5 @@ private:
     QString m_sourcePath;
     QSizeF m_displaySize;
 };
+
+}

@@ -8,6 +8,8 @@
 #include <QPen>
 #include <QString>
 
+namespace PixelForge {
+
 class PathObject final : public BaseObject
 {
 public:
@@ -51,3 +53,5 @@ private:
     QString m_sourcePath;
     std::uint64_t m_geometryRevision {1};
 };
+
+}

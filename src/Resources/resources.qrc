@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/PixelForge/Shader">
+        <file alias="CanvasTile.vert">Shader/CanvasTile.vert</file>
+        <file alias="CanvasTile.frag">Shader/CanvasTile.frag</file>
+    </qresource>
+</RCC>

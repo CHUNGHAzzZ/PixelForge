@@ -10,6 +10,8 @@
 
 class QPainter;
 
+namespace PixelForge {
+
 class BaseObject
 {
 public:
@@ -48,3 +50,5 @@ private:
     ObjectId m_id {InvalidObjectId};
     QTransform m_transform;
 };
+
+}

@@ -4,6 +4,8 @@
 
 #include <algorithm>
 
+namespace PixelForge {
+
 ImageObject::ImageObject(const QImage &image)
     : m_image(image)
 {
@@ -81,4 +83,6 @@ void ImageObject::paintLocal(QPainter &painter) const
     }
 
     painter.drawImage(localBounds(), m_image);
+}
+
 }
