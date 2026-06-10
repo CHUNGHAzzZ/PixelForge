@@ -1,13 +1,18 @@
 #pragma once
 
+#include "App/Canvas/Object/BaseObject.h"
+#include "App/Canvas/Object/CanvasObject.h"
 #include "Common/QmlProperty.hpp"
 
 #include <QColor>
-#include <QImage>
 #include <QPointF>
 #include <QQuickFramebufferObject>
 #include <QSizeF>
+#include <QTransform>
 #include <QUrl>
+
+#include <memory>
+#include <vector>
 
 class QMouseEvent;
 class QWheelEvent;
@@ -20,7 +25,9 @@ public:
     explicit CanvasItem(QQuickItem *parent = nullptr);
 
     Renderer *createRenderer() const override;
-    QImage image() const;
+    const CanvasObject &canvasObject() const;
+    const QTransform &canvasTransform() const;
+    std::vector<std::unique_ptr<BaseObject>> cloneObjects() const;
 
     PIXELFORGE_QML_QT_PROPERTY(QSizeF, documentSize, DocumentSize)
     PIXELFORGE_QML_VALUE_PROPERTY(qreal, zoom, Zoom)
@@ -45,20 +52,18 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
+    ObjectId nextObjectId();
+    void clearObjects();
+    void addObject(std::unique_ptr<BaseObject> object);
+    void updateCanvasTransform();
     void updateInteractionState();
 
-    QSizeF m_documentSize {1024.0, 768.0};
+    CanvasObject m_canvas;
     qreal m_zoom {1.0};
     QPointF m_contentOffset;
-    QColor m_backgroundColor {QStringLiteral("#111315")};
-    QColor m_canvasColor {QStringLiteral("#FFFFFF")};
-    QColor m_checkerColorA {QStringLiteral("#F7F8FA")};
-    QColor m_checkerColorB {QStringLiteral("#E1E4E8")};
-    QColor m_borderColor {QStringLiteral("#30343A")};
-    bool m_checkerboardVisible {true};
-    int m_checkerboardSize {16};
     bool m_interactive {true};
     bool m_isPanning {false};
     QPointF m_lastPanPosition;
-    QImage m_image;
+    ObjectId m_nextObjectId {1};
+    std::vector<std::unique_ptr<BaseObject>> m_objects;
 };

@@ -1,5 +1,7 @@
 #include "CanvasItem.h"
 
+#include "App/Canvas/Object/ImageObject.h"
+
 #include <QMouseEvent>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
@@ -12,35 +14,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <memory>
+#include <vector>
 
 namespace {
 struct CanvasRenderState
 {
-    QSizeF documentSize;
-    qreal zoom {1.0};
-    QPointF contentOffset;
-    QColor backgroundColor;
-    QColor canvasColor;
-    QColor checkerColorA;
-    QColor checkerColorB;
-    QColor borderColor;
-    QImage image;
-    bool checkerboardVisible {true};
-    int checkerboardSize {16};
+    CanvasObject canvas;
+    std::vector<std::unique_ptr<BaseObject>> objects;
 };
-
-QRectF centeredDocumentRect(const QSize &viewportSize, const CanvasRenderState &state)
-{
-    const QSizeF documentPixelSize(
-        state.documentSize.width() * state.zoom,
-        state.documentSize.height() * state.zoom);
-
-    return QRectF(
-        (viewportSize.width() - documentPixelSize.width()) * 0.5 + state.contentOffset.x(),
-        (viewportSize.height() - documentPixelSize.height()) * 0.5 + state.contentOffset.y(),
-        documentPixelSize.width(),
-        documentPixelSize.height());
-}
 
 class CanvasRenderer final : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions
 {
@@ -52,17 +34,8 @@ public:
             return;
         }
 
-        m_state.documentSize = canvas->documentSize();
-        m_state.zoom = canvas->zoom();
-        m_state.contentOffset = canvas->contentOffset();
-        m_state.backgroundColor = canvas->backgroundColor();
-        m_state.canvasColor = canvas->canvasColor();
-        m_state.checkerColorA = canvas->checkerColorA();
-        m_state.checkerColorB = canvas->checkerColorB();
-        m_state.borderColor = canvas->borderColor();
-        m_state.image = canvas->image();
-        m_state.checkerboardVisible = canvas->checkerboardVisible();
-        m_state.checkerboardSize = canvas->checkerboardSize();
+        m_state.canvas = canvas->canvasObject();
+        m_state.objects = canvas->cloneObjects();
     }
 
     void render() override
@@ -71,32 +44,25 @@ public:
 
         glViewport(0, 0, m_size.width(), m_size.height());
         glClearColor(
-            m_state.backgroundColor.redF(),
-            m_state.backgroundColor.greenF(),
-            m_state.backgroundColor.blueF(),
-            m_state.backgroundColor.alphaF());
+            m_state.canvas.backgroundColor().redF(),
+            m_state.canvas.backgroundColor().greenF(),
+            m_state.canvas.backgroundColor().blueF(),
+            m_state.canvas.backgroundColor().alphaF());
         glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         QOpenGLPaintDevice paintDevice(m_size);
         QPainter painter(&paintDevice);
         painter.setRenderHint(QPainter::Antialiasing, false);
 
-        const QRectF documentRect = centeredDocumentRect(m_size, m_state);
-        painter.fillRect(documentRect.translated(0.0, 10.0).adjusted(-10.0, 0.0, 10.0, 0.0), QColor(0, 0, 0, 42));
-
-        if (m_state.checkerboardVisible) {
-            drawCheckerboard(painter, documentRect);
-        } else {
-            painter.fillRect(documentRect, m_state.canvasColor);
+        m_state.canvas.paint(painter);
+        painter.save();
+        painter.setTransform(m_state.canvas.transform(), true);
+        for (const auto &object : m_state.objects) {
+            if (object) {
+                object->paint(painter);
+            }
         }
-
-        if (!m_state.image.isNull()) {
-            painter.drawImage(documentRect, m_state.image);
-        }
-
-        painter.setPen(QPen(m_state.borderColor, 1.0));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRect(documentRect.adjusted(0.5, 0.5, -0.5, -0.5));
+        painter.restore();
         painter.end();
     }
 
@@ -108,32 +74,6 @@ public:
         format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
         format.setSamples(4);
         return new QOpenGLFramebufferObject(size, format);
-    }
-
-private:
-    void drawCheckerboard(QPainter &painter, const QRectF &documentRect)
-    {
-        const qreal tileSize = std::max<qreal>(1.0, m_state.checkerboardSize * m_state.zoom);
-
-        painter.fillRect(documentRect, m_state.canvasColor);
-
-        const int columns = static_cast<int>(std::ceil(documentRect.width() / tileSize));
-        const int rows = static_cast<int>(std::ceil(documentRect.height() / tileSize));
-
-        for (int row = 0; row < rows; ++row) {
-            for (int column = 0; column < columns; ++column) {
-                const QColor &color = ((row + column) % 2 == 0) ? m_state.checkerColorA : m_state.checkerColorB;
-                const QRectF tile(
-                    documentRect.left() + column * tileSize,
-                    documentRect.top() + row * tileSize,
-                    std::min<qreal>(tileSize, documentRect.right() - (documentRect.left() + column * tileSize)),
-                    std::min<qreal>(tileSize, documentRect.bottom() - (documentRect.top() + row * tileSize)));
-
-                if (tile.width() > 0.0 && tile.height() > 0.0) {
-                    painter.fillRect(tile, color);
-                }
-            }
-        }
     }
 
     QSize m_size;
@@ -175,6 +115,7 @@ CanvasItem::CanvasItem(QQuickItem *parent)
     : QQuickFramebufferObject(parent)
 {
     setMirrorVertically(true);
+    updateCanvasTransform();
     updateInteractionState();
     resetView();
 }
@@ -184,24 +125,44 @@ QQuickFramebufferObject::Renderer *CanvasItem::createRenderer() const
     return new CanvasRenderer();
 }
 
-QImage CanvasItem::image() const
+const CanvasObject &CanvasItem::canvasObject() const
 {
-    return m_image;
+    return m_canvas;
+}
+
+const QTransform &CanvasItem::canvasTransform() const
+{
+    return m_canvas.transform();
+}
+
+std::vector<std::unique_ptr<BaseObject>> CanvasItem::cloneObjects() const
+{
+    std::vector<std::unique_ptr<BaseObject>> objects;
+    objects.reserve(m_objects.size());
+
+    for (const auto &object : m_objects) {
+        if (object) {
+            objects.push_back(object->clone());
+        }
+    }
+
+    return objects;
 }
 
 QSizeF CanvasItem::documentSize() const
 {
-    return m_documentSize;
+    return m_canvas.size();
 }
 
 void CanvasItem::setDocumentSize(const QSizeF &size)
 {
     const QSizeF boundedSize(std::max<qreal>(1.0, size.width()), std::max<qreal>(1.0, size.height()));
-    if (m_documentSize == boundedSize) {
+    if (m_canvas.size() == boundedSize) {
         return;
     }
 
-    m_documentSize = boundedSize;
+    m_canvas.setSize(boundedSize);
+    updateCanvasTransform();
     emit documentSizeChanged();
     update();
 }
@@ -219,6 +180,7 @@ void CanvasItem::setZoom(qreal zoom)
     }
 
     m_zoom = boundedZoom;
+    updateCanvasTransform();
     emit zoomChanged();
     update();
 }
@@ -235,119 +197,120 @@ void CanvasItem::setContentOffset(const QPointF &offset)
     }
 
     m_contentOffset = offset;
+    updateCanvasTransform();
     emit contentOffsetChanged();
     update();
 }
 
 QColor CanvasItem::backgroundColor() const
 {
-    return m_backgroundColor;
+    return m_canvas.backgroundColor();
 }
 
 void CanvasItem::setBackgroundColor(const QColor &color)
 {
-    if (m_backgroundColor == color || !color.isValid()) {
+    if (m_canvas.backgroundColor() == color || !color.isValid()) {
         return;
     }
 
-    m_backgroundColor = color;
+    m_canvas.setBackgroundColor(color);
     emit backgroundColorChanged();
     update();
 }
 
 QColor CanvasItem::canvasColor() const
 {
-    return m_canvasColor;
+    return m_canvas.color();
 }
 
 void CanvasItem::setCanvasColor(const QColor &color)
 {
-    if (m_canvasColor == color || !color.isValid()) {
+    if (m_canvas.color() == color || !color.isValid()) {
         return;
     }
 
-    m_canvasColor = color;
+    m_canvas.setColor(color);
     emit canvasColorChanged();
     update();
 }
 
 QColor CanvasItem::checkerColorA() const
 {
-    return m_checkerColorA;
+    return m_canvas.gridColorA();
 }
 
 void CanvasItem::setCheckerColorA(const QColor &color)
 {
-    if (m_checkerColorA == color || !color.isValid()) {
+    if (m_canvas.gridColorA() == color || !color.isValid()) {
         return;
     }
 
-    m_checkerColorA = color;
+    m_canvas.setGridColorA(color);
     emit checkerColorAChanged();
     update();
 }
 
 QColor CanvasItem::checkerColorB() const
 {
-    return m_checkerColorB;
+    return m_canvas.gridColorB();
 }
 
 void CanvasItem::setCheckerColorB(const QColor &color)
 {
-    if (m_checkerColorB == color || !color.isValid()) {
+    if (m_canvas.gridColorB() == color || !color.isValid()) {
         return;
     }
 
-    m_checkerColorB = color;
+    m_canvas.setGridColorB(color);
     emit checkerColorBChanged();
     update();
 }
 
 QColor CanvasItem::borderColor() const
 {
-    return m_borderColor;
+    return m_canvas.borderColor();
 }
 
 void CanvasItem::setBorderColor(const QColor &color)
 {
-    if (m_borderColor == color || !color.isValid()) {
+    if (m_canvas.borderColor() == color || !color.isValid()) {
         return;
     }
 
-    m_borderColor = color;
+    m_canvas.setBorderColor(color);
     emit borderColorChanged();
     update();
 }
 
 bool CanvasItem::checkerboardVisible() const
 {
-    return m_checkerboardVisible;
+    return m_canvas.gridVisible();
 }
 
 void CanvasItem::setCheckerboardVisible(bool visible)
 {
-    if (m_checkerboardVisible == visible) {
+    if (m_canvas.gridVisible() == visible) {
         return;
     }
 
-    m_checkerboardVisible = visible;
+    m_canvas.setGridVisible(visible);
     emit checkerboardVisibleChanged();
     update();
 }
 
 int CanvasItem::checkerboardSize() const
 {
-    return m_checkerboardSize;
+    return m_canvas.gridSize();
 }
 
 void CanvasItem::setCheckerboardSize(int size)
 {
     const int boundedSize = std::clamp(size, 1, 512);
-    if (m_checkerboardSize == boundedSize) {
+    if (m_canvas.gridSize() == boundedSize) {
         return;
     }
 
-    m_checkerboardSize = boundedSize;
+    m_canvas.setGridSize(boundedSize);
     emit checkerboardSizeChanged();
     update();
 }
@@ -372,8 +335,8 @@ void CanvasItem::resetView()
 {
     const qreal availableWidth = std::max<qreal>(1.0, width() - 48.0);
     const qreal availableHeight = std::max<qreal>(1.0, height() - 48.0);
-    const qreal zoomX = availableWidth / m_documentSize.width();
-    const qreal zoomY = availableHeight / m_documentSize.height();
+    const qreal zoomX = availableWidth / m_canvas.size().width();
+    const qreal zoomY = availableHeight / m_canvas.size().height();
     setZoom(std::clamp(std::min(zoomX, zoomY), 0.05, 1.0));
     setContentOffset(QPointF());
 }
@@ -390,8 +353,12 @@ bool CanvasItem::loadImage(const QUrl &fileUrl)
         return false;
     }
 
-    m_image = std::move(loadedImage);
-    setDocumentSize(m_image.size());
+    auto imageObject = std::make_unique<ImageObject>(nextObjectId(), loadedImage);
+    imageObject->setSourcePath(fileUrl.toLocalFile());
+
+    clearObjects();
+    addObject(std::move(imageObject));
+    setDocumentSize(loadedImage.size());
     resetView();
     update();
     return true;
@@ -400,6 +367,7 @@ bool CanvasItem::loadImage(const QUrl &fileUrl)
 void CanvasItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickFramebufferObject::geometryChange(newGeometry, oldGeometry);
+    updateCanvasTransform();
 
     if (oldGeometry.size().isEmpty()) {
         resetView();
@@ -454,16 +422,60 @@ void CanvasItem::wheelEvent(QWheelEvent *event)
         return;
     }
 
-    const qreal oldZoom = m_zoom;
     const qreal zoomStep = std::pow(1.0015, angleDelta.y());
     const QPointF focus = event->position();
-    const QPointF before = (focus - QPointF(width() * 0.5, height() * 0.5) - m_contentOffset) / oldZoom;
+
+    bool invertible = false;
+    const QPointF canvasFocus = m_canvas.transform().inverted(&invertible).map(focus);
+    if (!invertible) {
+        QQuickFramebufferObject::wheelEvent(event);
+        return;
+    }
 
     setZoom(m_zoom * zoomStep);
 
-    const QPointF afterOffset = focus - QPointF(width() * 0.5, height() * 0.5) - before * m_zoom;
+    const QPointF centeredTopLeft(
+        (width() - m_canvas.size().width() * m_zoom) * 0.5,
+        (height() - m_canvas.size().height() * m_zoom) * 0.5);
+    const QPointF afterOffset = focus - QPointF(canvasFocus.x() * m_zoom, canvasFocus.y() * m_zoom) - centeredTopLeft;
     setContentOffset(afterOffset);
     event->accept();
+}
+
+void CanvasItem::updateCanvasTransform()
+{
+    const QPointF centeredTopLeft(
+        (width() - m_canvas.size().width() * m_zoom) * 0.5,
+        (height() - m_canvas.size().height() * m_zoom) * 0.5);
+
+    QTransform transform;
+    transform.translate(centeredTopLeft.x() + m_contentOffset.x(), centeredTopLeft.y() + m_contentOffset.y());
+    transform.scale(m_zoom, m_zoom);
+    m_canvas.setTransform(transform);
+}
+
+ObjectId CanvasItem::nextObjectId()
+{
+    return m_nextObjectId++;
+}
+
+void CanvasItem::clearObjects()
+{
+    m_objects.clear();
+}
+
+void CanvasItem::addObject(std::unique_ptr<BaseObject> object)
+{
+    if (!object) {
+        return;
+    }
+
+    if (object->id() == InvalidObjectId) {
+        object->setId(nextObjectId());
+    }
+
+    m_objects.push_back(std::move(object));
+    update();
 }
 
 void CanvasItem::updateInteractionState()

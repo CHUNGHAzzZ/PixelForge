@@ -191,11 +191,11 @@ Window {
             color: "#111315"
             border.color: "#30343A"
 
-            CanvasView {
+            CanvasItem {
                 id: canvas
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 48, 960)
-                height: Math.min(parent.height - 48, 640)
+                width: Math.min(parent.width, 960)
+                height: Math.min(parent.height, 640)
             }
         }
 
