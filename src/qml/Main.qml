@@ -12,8 +12,12 @@ Window {
     color: "#202225"
     title: appController.documentName + " - PixelForge"
 
-    function importDroppedFile(urls) {
+    function importDroppedFile(urls, canvasView) {
         if (!urls || urls.length === 0) {
+            return false
+        }
+
+        if (!canvasView.loadImage(urls[0])) {
             return false
         }
 
@@ -204,7 +208,7 @@ Window {
             }
 
             onDropped: function(drop) {
-                if (drop.hasUrls && root.importDroppedFile(drop.urls)) {
+                if (drop.hasUrls && root.importDroppedFile(drop.urls, canvas)) {
                     drop.acceptProposedAction()
                 }
             }

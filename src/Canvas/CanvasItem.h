@@ -3,9 +3,11 @@
 #include "Common/QmlProperty.hpp"
 
 #include <QColor>
+#include <QImage>
 #include <QPointF>
 #include <QQuickFramebufferObject>
 #include <QSizeF>
+#include <QUrl>
 
 class QMouseEvent;
 class QWheelEvent;
@@ -18,6 +20,7 @@ public:
     explicit CanvasItem(QQuickItem *parent = nullptr);
 
     Renderer *createRenderer() const override;
+    QImage image() const;
 
     PIXELFORGE_QML_QT_PROPERTY(QSizeF, documentSize, DocumentSize)
     PIXELFORGE_QML_VALUE_PROPERTY(qreal, zoom, Zoom)
@@ -32,6 +35,7 @@ public:
     PIXELFORGE_QML_VALUE_PROPERTY(bool, interactive, Interactive)
 
     Q_INVOKABLE void resetView();
+    Q_INVOKABLE bool loadImage(const QUrl &fileUrl);
 
 protected:
     void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
@@ -56,4 +60,5 @@ private:
     bool m_interactive {true};
     bool m_isPanning {false};
     QPointF m_lastPanPosition;
+    QImage m_image;
 };

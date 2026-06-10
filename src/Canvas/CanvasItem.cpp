@@ -7,6 +7,9 @@
 #include <QPainter>
 #include <QWheelEvent>
 
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -21,6 +24,7 @@ struct CanvasRenderState
     QColor checkerColorA;
     QColor checkerColorB;
     QColor borderColor;
+    QImage image;
     bool checkerboardVisible {true};
     int checkerboardSize {16};
 };
@@ -56,6 +60,7 @@ public:
         m_state.checkerColorA = canvas->checkerColorA();
         m_state.checkerColorB = canvas->checkerColorB();
         m_state.borderColor = canvas->borderColor();
+        m_state.image = canvas->image();
         m_state.checkerboardVisible = canvas->checkerboardVisible();
         m_state.checkerboardSize = canvas->checkerboardSize();
     }
@@ -83,6 +88,10 @@ public:
             drawCheckerboard(painter, documentRect);
         } else {
             painter.fillRect(documentRect, m_state.canvasColor);
+        }
+
+        if (!m_state.image.isNull()) {
+            painter.drawImage(documentRect, m_state.image);
         }
 
         painter.setPen(QPen(m_state.borderColor, 1.0));
@@ -130,6 +139,36 @@ private:
     QSize m_size;
     CanvasRenderState m_state;
 };
+
+QImage imageFromMat(const cv::Mat &image)
+{
+    if (image.empty()) {
+        return {};
+    }
+
+    cv::Mat converted;
+    switch (image.channels()) {
+    case 1:
+        cv::cvtColor(image, converted, cv::COLOR_GRAY2RGBA);
+        break;
+    case 3:
+        cv::cvtColor(image, converted, cv::COLOR_BGR2RGBA);
+        break;
+    case 4:
+        cv::cvtColor(image, converted, cv::COLOR_BGRA2RGBA);
+        break;
+    default:
+        return {};
+    }
+
+    return QImage(
+               converted.data,
+               converted.cols,
+               converted.rows,
+               static_cast<qsizetype>(converted.step),
+               QImage::Format_RGBA8888)
+        .copy();
+}
 }
 
 CanvasItem::CanvasItem(QQuickItem *parent)
@@ -143,6 +182,11 @@ CanvasItem::CanvasItem(QQuickItem *parent)
 QQuickFramebufferObject::Renderer *CanvasItem::createRenderer() const
 {
     return new CanvasRenderer();
+}
+
+QImage CanvasItem::image() const
+{
+    return m_image;
 }
 
 QSizeF CanvasItem::documentSize() const
@@ -332,6 +376,25 @@ void CanvasItem::resetView()
     const qreal zoomY = availableHeight / m_documentSize.height();
     setZoom(std::clamp(std::min(zoomX, zoomY), 0.05, 1.0));
     setContentOffset(QPointF());
+}
+
+bool CanvasItem::loadImage(const QUrl &fileUrl)
+{
+    if (!fileUrl.isLocalFile()) {
+        return false;
+    }
+
+    const cv::Mat decodedImage = cv::imread(fileUrl.toLocalFile().toStdString(), cv::IMREAD_UNCHANGED);
+    QImage loadedImage = imageFromMat(decodedImage);
+    if (loadedImage.isNull()) {
+        return false;
+    }
+
+    m_image = std::move(loadedImage);
+    setDocumentSize(m_image.size());
+    resetView();
+    update();
+    return true;
 }
 
 void CanvasItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
