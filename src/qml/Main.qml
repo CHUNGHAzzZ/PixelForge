@@ -12,6 +12,15 @@ Window {
     color: "#202225"
     title: appController.documentName + " - PixelForge"
 
+    function importDroppedFile(urls) {
+        if (!urls || urls.length === 0) {
+            return false
+        }
+
+        appController.importFile(urls[0])
+        return true
+    }
+
     Rectangle {
         id: menuBar
         anchors.left: parent.left
@@ -183,6 +192,46 @@ Window {
                 anchors.centerIn: parent
                 width: Math.min(parent.width - 48, 960)
                 height: Math.min(parent.height - 48, 640)
+            }
+        }
+
+        DropArea {
+            id: fileDropArea
+            anchors.fill: parent
+
+            onEntered: function(drag) {
+                drag.accepted = drag.hasUrls
+            }
+
+            onDropped: function(drop) {
+                if (drop.hasUrls && root.importDroppedFile(drop.urls)) {
+                    drop.acceptProposedAction()
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            visible: fileDropArea.containsDrag
+            color: "#66000000"
+            border.color: "#6EA8FF"
+            border.width: 2
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - 48, 360)
+                height: 96
+                radius: 6
+                color: "#2F343A"
+                border.color: "#6EA8FF"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "Drop file to import"
+                    color: "#F4F7FB"
+                    font.pixelSize: 18
+                    font.bold: true
+                }
             }
         }
     }

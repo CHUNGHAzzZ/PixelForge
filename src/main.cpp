@@ -2,11 +2,14 @@
 #include "Common/QmlTypeRegistration.h"
 
 #include <QGuiApplication>
+#include <QDebug>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
 #include <QSurfaceFormat>
 #include <QUrl>
+
+#include <opencv2/core.hpp>
 
 namespace {
 void configureSurface()

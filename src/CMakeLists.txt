@@ -1,6 +1,8 @@
 include("${CMAKE_SOURCE_DIR}/3rdparty/qt6/qt6.cmake")
+include("${CMAKE_SOURCE_DIR}/3rdparty/opencv/opencv.cmake")
 
 qt6_define_imported_targets()
+opencv_define_imported_targets()
 qt6_require_tools(moc rcc)
 qt6_require_modules(Core Gui Network Qml QmlModels QmlWorkerScript Quick OpenGL)
 
@@ -107,6 +109,7 @@ target_compile_options(PixelForge
 
 target_link_libraries(PixelForge
     PRIVATE
+        OpenCV::world
         Qt6::Core
         Qt6::Gui
         Qt6::Network
