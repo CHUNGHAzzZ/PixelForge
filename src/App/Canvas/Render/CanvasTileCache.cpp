@@ -160,11 +160,19 @@ void CanvasTileCache::uploadTile(
             continue;
         }
 
+        if (object->type() == ObjectType::Image) {
+            continue;
+        }
+
         object->paint(painter);
     }
 
     for (const auto &object : objects) {
         if (!object || object->id() != selectedObjectId || !object->canvasBounds().intersects(layout.updateSceneRect)) {
+            continue;
+        }
+
+        if (object->type() == ObjectType::Image) {
             continue;
         }
 

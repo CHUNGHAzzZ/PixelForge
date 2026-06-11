@@ -302,40 +302,35 @@ bool CanvasRender::loadImage(const QUrl &fileUrl)
     auto imageObject = std::make_unique<ImageObject>(nextObjectId(), loadedImage);
     imageObject->setSourcePath(localPath);
 
+    const bool firstObject = m_objects.empty();
     const QSizeF imageSize(loadedImage.size());
-    const QSizeF canvasSize = m_canvas.size();
-    const QSizeF availableSize(canvasSize.width() * 0.8, canvasSize.height() * 0.8);
-    const qreal scale = std::min<qreal>(
-        1.0,
-        std::min(
-            availableSize.width() / std::max<qreal>(1.0, imageSize.width()),
-            availableSize.height() / std::max<qreal>(1.0, imageSize.height())));
-    const QSizeF displaySize(imageSize.width() * scale, imageSize.height() * scale);
+    if (firstObject) {
+        setDocumentSize(imageSize);
+    }
 
+    const QSizeF canvasSize = m_canvas.size();
     const qreal stagger = 32.0 * static_cast<qreal>(m_objects.size() % 8);
-    const QPointF centeredPosition(
-        (canvasSize.width() - displaySize.width()) * 0.5 + stagger,
-        (canvasSize.height() - displaySize.height()) * 0.5 + stagger);
+    const QPointF imagePosition = firstObject
+        ? QPointF()
+        : QPointF(
+            (canvasSize.width() - imageSize.width()) * 0.5 + stagger,
+            (canvasSize.height() - imageSize.height()) * 0.5 + stagger);
     QTransform imageTransform;
-    imageTransform.translate(centeredPosition.x(), centeredPosition.y());
-    imageTransform.scale(scale, scale);
+    imageTransform.translate(imagePosition.x(), imagePosition.y());
     imageObject->setTransform(imageTransform);
 
-    const bool firstObject = m_objects.empty();
     addObject(std::move(imageObject));
     if (firstObject) {
         resetView();
     }
     update();
     Logger::info(formatLogMessage(
-        "Image object added: %s source=%dx%d display=%.0fx%.0f position=%.0f,%.0f",
+        "Image object added: %s source=%dx%d display=1:1 position=%.0f,%.0f",
         localPath.toUtf8().constData(),
         loadedImage.width(),
         loadedImage.height(),
-        displaySize.width(),
-        displaySize.height(),
-        centeredPosition.x(),
-        centeredPosition.y()));
+        imagePosition.x(),
+        imagePosition.y()));
     return true;
 }
 
@@ -388,7 +383,9 @@ void CanvasRender::mouseMoveEvent(QMouseEvent *event)
             const QPointF grabbedCanvasPosition = object->localToCanvas(m_objectGrabLocalPosition);
             object->translate(canvasPoint - grabbedCanvasPosition);
             const QRectF afterBounds = object->canvasBounds();
-            markObjectDirty(beforeBounds, afterBounds);
+            if (object->type() != ObjectType::Image) {
+                markObjectDirty(beforeBounds, afterBounds);
+            }
             m_lastObjectMoveCanvasPosition = canvasPoint;
             update();
         }
@@ -397,7 +394,10 @@ void CanvasRender::mouseMoveEvent(QMouseEvent *event)
     }
 
     if (m_isPanning) {
-        setContentOffset(m_contentOffset + event->position() - m_lastPanPosition);
+        m_contentOffset += event->position() - m_lastPanPosition;
+        updateViewportTransform();
+        emit contentOffsetChanged();
+        update();
         m_lastPanPosition = event->position();
         event->accept();
         return;
@@ -441,13 +441,21 @@ void CanvasRender::wheelEvent(QWheelEvent *event)
         return;
     }
 
-    setZoom(m_zoom * zoomStep);
+    const qreal oldZoom = m_zoom;
+    m_zoom = std::clamp(m_zoom * zoomStep, 0.05, 32.0);
+    if (qFuzzyCompare(oldZoom, m_zoom)) {
+        event->accept();
+        return;
+    }
 
     const QPointF centeredTopLeft(
         (width() - m_canvas.size().width() * m_zoom) * 0.5,
         (height() - m_canvas.size().height() * m_zoom) * 0.5);
-    const QPointF afterOffset = focus - QPointF(canvasFocus.x() * m_zoom, canvasFocus.y() * m_zoom) - centeredTopLeft;
-    setContentOffset(afterOffset);
+    m_contentOffset = focus - QPointF(canvasFocus.x() * m_zoom, canvasFocus.y() * m_zoom) - centeredTopLeft;
+    updateViewportTransform();
+    emit zoomChanged();
+    emit contentOffsetChanged();
+    update();
     event->accept();
 }
 
@@ -526,7 +534,11 @@ void CanvasRender::setSelectedObjectId(ObjectId id)
     const QRectF beforeBounds = beforeObject ? beforeObject->canvasBounds() : QRectF();
     const QRectF afterBounds = afterObject ? afterObject->canvasBounds() : QRectF();
     m_selectedObjectId = id;
-    markObjectDirty(beforeBounds, afterBounds);
+    const bool beforeNeedsTileUpdate = beforeObject && beforeObject->type() != ObjectType::Image;
+    const bool afterNeedsTileUpdate = afterObject && afterObject->type() != ObjectType::Image;
+    if (beforeNeedsTileUpdate || afterNeedsTileUpdate) {
+        markObjectDirty(beforeBounds, afterBounds);
+    }
     Logger::debug(formatLogMessage("Selected canvas object id=%llu", static_cast<unsigned long long>(id)));
     update();
 }
@@ -534,7 +546,7 @@ void CanvasRender::setSelectedObjectId(ObjectId id)
 void CanvasRender::clearObjects()
 {
     for (const auto &object : m_objects) {
-        if (object) {
+        if (object && object->type() != ObjectType::Image) {
             markSceneDirty(object->canvasBounds());
         }
     }
@@ -554,7 +566,9 @@ void CanvasRender::addObject(std::unique_ptr<BaseObject> object)
         object->setId(nextObjectId());
     }
 
-    markSceneDirty(object->canvasBounds());
+    if (object->type() != ObjectType::Image) {
+        markSceneDirty(object->canvasBounds());
+    }
     Logger::debug(formatLogMessage(
         "Added canvas object id=%llu type=%d",
         static_cast<unsigned long long>(object->id()),

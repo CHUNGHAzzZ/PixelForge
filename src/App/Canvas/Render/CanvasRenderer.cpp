@@ -1,10 +1,12 @@
 #include "App/Canvas/Render/CanvasRenderer.h"
 
+#include "App/Canvas/Object/ImageObject.h"
 #include "App/Canvas/Render/CanvasRender.h"
 #include "App/Canvas/Render/CanvasTextureTile.h"
 #include "Utils/Logger.h"
 
 #include <QFile>
+#include <QImage>
 #include <QMatrix4x4>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLShaderProgram>
@@ -14,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <unordered_set>
 #include <vector>
 
 namespace PixelForge {
@@ -34,7 +37,7 @@ QRect cacheBoundsForState(const CanvasRenderState &state)
 {
     QRectF bounds = state.canvas.canvasBounds();
     for (const auto &object : state.objects) {
-        if (object) {
+        if (object && object->type() != ObjectType::Image) {
             bounds = bounds.united(object->canvasBounds());
         }
     }
@@ -50,7 +53,15 @@ QRect cacheBoundsForState(const CanvasRenderState &state)
 
 CanvasRenderer::~CanvasRenderer()
 {
+    for (auto &[id, texture] : m_imageTextures) {
+        if (texture.textureId != 0) {
+            glDeleteTextures(1, &texture.textureId);
+        }
+    }
+    m_imageTextures.clear();
     m_tileCache.destroy();
+    m_imageTexCoordBuffer.destroy();
+    m_imageVertexBuffer.destroy();
     m_texCoordBuffer.destroy();
     m_vertexBuffer.destroy();
     m_vertexArrayObject.destroy();
@@ -89,6 +100,7 @@ void CanvasRenderer::render()
     glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     drawTiles();
+    drawImageObjects();
 }
 
 QOpenGLFramebufferObject *CanvasRenderer::createFramebufferObject(const QSize &size)
@@ -153,6 +165,11 @@ void CanvasRenderer::ensureGeometryBuffers()
 
     m_texCoordBuffer.create();
     m_texCoordBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+
+    m_imageVertexBuffer.create();
+    m_imageVertexBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    m_imageTexCoordBuffer.create();
+    m_imageTexCoordBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
 
     m_geometryBuffersInitialized = true;
 }
@@ -269,6 +286,149 @@ void CanvasRenderer::drawTile(const CanvasTextureTile &tile, int tileIndex)
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
+void CanvasRenderer::drawImageObjects()
+{
+    if (!m_shader || !m_shader->bind()) {
+        return;
+    }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glActiveTexture(GL_TEXTURE0);
+    m_shader->setUniformValue("tileTexture", 0);
+    QOpenGLVertexArrayObject::Binder vaoBinder(&m_vertexArrayObject);
+
+    for (const auto &object : m_state.objects) {
+        if (!object || object->type() != ObjectType::Image) {
+            continue;
+        }
+
+        const QRectF mappedRect = m_state.viewportTransform.mapRect(object->canvasBounds());
+        const QRectF viewportRect {QPointF(), QSizeF(m_size)};
+        if (!mappedRect.intersects(viewportRect)) {
+            continue;
+        }
+
+        drawImageObject(*object);
+    }
+
+    pruneImageTextureCache();
+    m_shader->release();
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_BLEND);
+}
+
+void CanvasRenderer::drawImageObject(const BaseObject &object)
+{
+    const auto *imageObject = dynamic_cast<const ImageObject *>(&object);
+    if (!imageObject || imageObject->image().isNull()) {
+        return;
+    }
+
+    uploadImageObjectTexture(*imageObject);
+    const auto textureIt = m_imageTextures.find(imageObject->id());
+    if (textureIt == m_imageTextures.end() || textureIt->second.textureId == 0) {
+        return;
+    }
+
+    const QRectF localRect = imageObject->localBounds();
+    if (m_imageGeometryLocalBounds != localRect) {
+        const GLfloat vertices[] = {
+            static_cast<GLfloat>(localRect.left()), static_cast<GLfloat>(localRect.top()),
+            static_cast<GLfloat>(localRect.right()), static_cast<GLfloat>(localRect.top()),
+            static_cast<GLfloat>(localRect.right()), static_cast<GLfloat>(localRect.bottom()),
+            static_cast<GLfloat>(localRect.left()), static_cast<GLfloat>(localRect.top()),
+            static_cast<GLfloat>(localRect.right()), static_cast<GLfloat>(localRect.bottom()),
+            static_cast<GLfloat>(localRect.left()), static_cast<GLfloat>(localRect.bottom()),
+        };
+        const GLfloat texCoords[] = {
+            0.0f, 0.0f,
+            1.0f, 0.0f,
+            1.0f, 1.0f,
+            0.0f, 0.0f,
+            1.0f, 1.0f,
+            0.0f, 1.0f,
+        };
+
+        m_imageVertexBuffer.bind();
+        m_imageVertexBuffer.allocate(vertices, static_cast<int>(sizeof(vertices)));
+        m_imageVertexBuffer.release();
+
+        m_imageTexCoordBuffer.bind();
+        m_imageTexCoordBuffer.allocate(texCoords, static_cast<int>(sizeof(texCoords)));
+        m_imageTexCoordBuffer.release();
+        m_imageGeometryLocalBounds = localRect;
+    }
+
+    m_shader->setUniformValue("modelViewProjection", objectToClipMatrix(*imageObject));
+    glBindTexture(GL_TEXTURE_2D, textureIt->second.textureId);
+
+    m_imageVertexBuffer.bind();
+    m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 2);
+    m_imageVertexBuffer.release();
+
+    m_imageTexCoordBuffer.bind();
+    m_shader->setAttributeBuffer(1, GL_FLOAT, 0, 2);
+    m_imageTexCoordBuffer.release();
+
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+
+void CanvasRenderer::uploadImageObjectTexture(const ImageObject &object)
+{
+    auto &texture = m_imageTextures[object.id()];
+    if (texture.textureId != 0 && texture.size == object.image().size()) {
+        return;
+    }
+
+    if (texture.textureId == 0) {
+        glGenTextures(1, &texture.textureId);
+    }
+
+    const QImage glImage = object.image().convertToFormat(QImage::Format_RGBA8888);
+    glBindTexture(GL_TEXTURE_2D, texture.textureId);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(
+        GL_TEXTURE_2D,
+        0,
+        GL_RGBA,
+        glImage.width(),
+        glImage.height(),
+        0,
+        GL_RGBA,
+        GL_UNSIGNED_BYTE,
+        glImage.constBits());
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    texture.size = glImage.size();
+}
+
+void CanvasRenderer::pruneImageTextureCache()
+{
+    std::unordered_set<ObjectId> liveIds;
+    for (const auto &object : m_state.objects) {
+        if (object && object->type() == ObjectType::Image) {
+            liveIds.insert(object->id());
+        }
+    }
+
+    for (auto it = m_imageTextures.begin(); it != m_imageTextures.end();) {
+        if (liveIds.contains(it->first)) {
+            ++it;
+            continue;
+        }
+
+        if (it->second.textureId != 0) {
+            glDeleteTextures(1, &it->second.textureId);
+        }
+        it = m_imageTextures.erase(it);
+    }
+}
+
 QMatrix4x4 CanvasRenderer::sceneToClipMatrix() const
 {
     QMatrix4x4 projection;
@@ -281,6 +441,22 @@ QMatrix4x4 CanvasRenderer::sceneToClipMatrix() const
         1.0f);
 
     QMatrix4x4 model(m_state.viewportTransform);
+    return projection * model;
+}
+
+QMatrix4x4 CanvasRenderer::objectToClipMatrix(const BaseObject &object) const
+{
+    QMatrix4x4 projection;
+    projection.ortho(
+        0.0f,
+        static_cast<float>(std::max(1, m_size.width())),
+        static_cast<float>(std::max(1, m_size.height())),
+        0.0f,
+        -1.0f,
+        1.0f);
+
+    QTransform modelTransform = object.transform() * m_state.viewportTransform;
+    QMatrix4x4 model(modelTransform);
     return projection * model;
 }
 
