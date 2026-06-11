@@ -20,25 +20,20 @@ public:
     void markAllDirty();
     void markDirty(const QRectF &sceneRect);
     void markDirty(const SceneDirtyRectList &sceneRects);
-    void updateDirtyTiles(
-        const CanvasObject &canvas,
-        const CanvasObjectList &objects,
-        ObjectId selectedObjectId);
+    void recalculateCache(const CanvasOpenGLUpdateInfoList &updateInfos);
     void destroy();
 
     const std::vector<CanvasTextureTile> &tiles() const;
     const QRect &cacheBounds() const;
 
 private:
-    void uploadTile(
-        CanvasTextureTile &tile,
-        const CanvasObject &canvas,
-        const CanvasObjectList &objects,
-        ObjectId selectedObjectId);
+    CanvasTextureTile *textureTile(int column, int row);
 
     QRect m_cacheBounds;
     CanvasTileTextureInfo m_textureInfo;
     std::vector<CanvasTextureTile> m_tiles;
+    int m_columns {0};
+    int m_rows {0};
 };
 
 }

@@ -37,6 +37,7 @@ public:
     void create(QOpenGLFunctions *functions);
     void destroy();
     void upload(const QImage &image, const QRectF &textureContentRect);
+    void update(const CanvasTextureTileUpdateInfo &updateInfo);
 
 private:
     QRect m_sceneRect;

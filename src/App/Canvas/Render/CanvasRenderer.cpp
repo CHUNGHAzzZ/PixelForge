@@ -1,6 +1,5 @@
 #include "App/Canvas/Render/CanvasRenderer.h"
 
-#include "App/Canvas/Object/ImageObject.h"
 #include "App/Canvas/Render/CanvasRender.h"
 #include "App/Canvas/Render/CanvasTextureTile.h"
 #include "Utils/Logger.h"
@@ -35,12 +34,11 @@ QString readResourceText(const QString &path)
 
 QRect cacheBoundsForState(const CanvasRenderState &state)
 {
-    QRectF bounds = state.canvas.canvasBounds();
-    for (const auto &object : state.objects) {
-        if (object && object->type() != ObjectType::Image) {
-            bounds = bounds.united(object->canvasBounds());
-        }
+    if (!state.cacheBounds.isEmpty()) {
+        return state.cacheBounds;
     }
+
+    QRectF bounds = state.canvas.canvasBounds();
 
     const QRect alignedBounds = bounds.adjusted(-8.0, -8.0, 8.0, 8.0).toAlignedRect();
     const int left = std::floor(static_cast<double>(alignedBounds.left()) / CanvasDefaultTileEffectiveSize) * CanvasDefaultTileEffectiveSize;
@@ -75,11 +73,12 @@ void CanvasRenderer::synchronize(QQuickFramebufferObject *item)
     }
 
     m_state.canvas = canvas->canvasObject();
-    m_state.objects = canvas->cloneObjects();
+    m_state.imageSnapshots = canvas->imageRenderSnapshots();
     m_state.viewportTransform = canvas->viewportTransform();
     m_state.selectedObjectId = canvas->selectedObjectId();
     bool allDirty = false;
-    m_state.dirtySceneRects = const_cast<CanvasRender *>(canvas)->consumeDirtySceneRects(&allDirty);
+    m_state.openGLUpdateInfos = const_cast<CanvasRender *>(canvas)->consumeOpenGLUpdateInfos(&allDirty);
+    m_state.cacheBounds = canvas->cacheBounds();
     m_state.allDirty = allDirty;
 }
 
@@ -231,15 +230,12 @@ void CanvasRenderer::ensureTileGeometryBuffers()
 
 void CanvasRenderer::updateTiles()
 {
-    m_tileCache.ensureTiles(cacheBoundsForState(m_state), this);
+    const QRect cacheBounds = cacheBoundsForState(m_state);
+    m_tileCache.ensureTiles(cacheBounds, this);
 
-    if (m_state.allDirty) {
-        m_tileCache.markAllDirty();
-    } else {
-        m_tileCache.markDirty(m_state.dirtySceneRects);
-    }
-
-    m_tileCache.updateDirtyTiles(m_state.canvas, m_state.objects, m_state.selectedObjectId);
+    m_tileCache.recalculateCache(m_state.openGLUpdateInfos);
+    m_state.openGLUpdateInfos.clear();
+    m_state.allDirty = false;
 }
 
 void CanvasRenderer::drawTiles()
@@ -298,18 +294,18 @@ void CanvasRenderer::drawImageObjects()
     m_shader->setUniformValue("tileTexture", 0);
     QOpenGLVertexArrayObject::Binder vaoBinder(&m_vertexArrayObject);
 
-    for (const auto &object : m_state.objects) {
-        if (!object || object->type() != ObjectType::Image) {
+    for (const CanvasImageRenderSnapshot &snapshot : m_state.imageSnapshots) {
+        if (!snapshot.isValid()) {
             continue;
         }
 
-        const QRectF mappedRect = m_state.viewportTransform.mapRect(object->canvasBounds());
+        const QRectF mappedRect = m_state.viewportTransform.mapRect(snapshot.canvasBounds);
         const QRectF viewportRect {QPointF(), QSizeF(m_size)};
         if (!mappedRect.intersects(viewportRect)) {
             continue;
         }
 
-        drawImageObject(*object);
+        drawImageObject(snapshot);
     }
 
     pruneImageTextureCache();
@@ -318,20 +314,19 @@ void CanvasRenderer::drawImageObjects()
     glDisable(GL_BLEND);
 }
 
-void CanvasRenderer::drawImageObject(const BaseObject &object)
+void CanvasRenderer::drawImageObject(const CanvasImageRenderSnapshot &snapshot)
 {
-    const auto *imageObject = dynamic_cast<const ImageObject *>(&object);
-    if (!imageObject || imageObject->image().isNull()) {
+    if (!snapshot.isValid()) {
         return;
     }
 
-    uploadImageObjectTexture(*imageObject);
-    const auto textureIt = m_imageTextures.find(imageObject->id());
+    uploadImageObjectTexture(snapshot);
+    const auto textureIt = m_imageTextures.find(snapshot.id);
     if (textureIt == m_imageTextures.end() || textureIt->second.textureId == 0) {
         return;
     }
 
-    const QRectF localRect = imageObject->localBounds();
+    const QRectF localRect = snapshot.localBounds;
     if (m_imageGeometryLocalBounds != localRect) {
         const GLfloat vertices[] = {
             static_cast<GLfloat>(localRect.left()), static_cast<GLfloat>(localRect.top()),
@@ -360,7 +355,7 @@ void CanvasRenderer::drawImageObject(const BaseObject &object)
         m_imageGeometryLocalBounds = localRect;
     }
 
-    m_shader->setUniformValue("modelViewProjection", objectToClipMatrix(*imageObject));
+    m_shader->setUniformValue("modelViewProjection", imageToClipMatrix(snapshot));
     glBindTexture(GL_TEXTURE_2D, textureIt->second.textureId);
 
     m_imageVertexBuffer.bind();
@@ -374,10 +369,10 @@ void CanvasRenderer::drawImageObject(const BaseObject &object)
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
-void CanvasRenderer::uploadImageObjectTexture(const ImageObject &object)
+void CanvasRenderer::uploadImageObjectTexture(const CanvasImageRenderSnapshot &snapshot)
 {
-    auto &texture = m_imageTextures[object.id()];
-    if (texture.textureId != 0 && texture.size == object.image().size()) {
+    auto &texture = m_imageTextures[snapshot.id];
+    if (texture.textureId != 0 && texture.size == snapshot.image.size() && texture.contentKey == snapshot.contentKey) {
         return;
     }
 
@@ -385,7 +380,7 @@ void CanvasRenderer::uploadImageObjectTexture(const ImageObject &object)
         glGenTextures(1, &texture.textureId);
     }
 
-    const QImage glImage = object.image().convertToFormat(QImage::Format_RGBA8888);
+    const QImage glImage = snapshot.image.convertToFormat(QImage::Format_RGBA8888);
     glBindTexture(GL_TEXTURE_2D, texture.textureId);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -405,14 +400,15 @@ void CanvasRenderer::uploadImageObjectTexture(const ImageObject &object)
     glGenerateMipmap(GL_TEXTURE_2D);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     texture.size = glImage.size();
+    texture.contentKey = snapshot.contentKey;
 }
 
 void CanvasRenderer::pruneImageTextureCache()
 {
     std::unordered_set<ObjectId> liveIds;
-    for (const auto &object : m_state.objects) {
-        if (object && object->type() == ObjectType::Image) {
-            liveIds.insert(object->id());
+    for (const CanvasImageRenderSnapshot &snapshot : m_state.imageSnapshots) {
+        if (snapshot.isValid()) {
+            liveIds.insert(snapshot.id);
         }
     }
 
@@ -444,7 +440,7 @@ QMatrix4x4 CanvasRenderer::sceneToClipMatrix() const
     return projection * model;
 }
 
-QMatrix4x4 CanvasRenderer::objectToClipMatrix(const BaseObject &object) const
+QMatrix4x4 CanvasRenderer::imageToClipMatrix(const CanvasImageRenderSnapshot &snapshot) const
 {
     QMatrix4x4 projection;
     projection.ortho(
@@ -455,7 +451,7 @@ QMatrix4x4 CanvasRenderer::objectToClipMatrix(const BaseObject &object) const
         -1.0f,
         1.0f);
 
-    QTransform modelTransform = object.transform() * m_state.viewportTransform;
+    QTransform modelTransform = snapshot.transform * m_state.viewportTransform;
     QMatrix4x4 model(modelTransform);
     return projection * model;
 }

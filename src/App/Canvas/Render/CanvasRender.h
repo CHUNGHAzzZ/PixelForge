@@ -1,5 +1,7 @@
 #pragma once
 
+#include "App/Canvas/CanvasDocument.h"
+#include "App/Canvas/CanvasProjection.h"
 #include "App/Canvas/Render/CanvasTypes.hpp"
 #include "Utils/QmlProperty.hpp"
 
@@ -30,8 +32,9 @@ public:
     const CanvasObject &canvasObject() const;
     const QTransform &viewportTransform() const;
     ObjectId selectedObjectId() const;
-    CanvasObjectList cloneObjects() const;
-    SceneDirtyRectList consumeDirtySceneRects(bool *allDirty);
+    CanvasImageRenderSnapshotList imageRenderSnapshots() const;
+    QRect cacheBounds() const;
+    CanvasOpenGLUpdateInfoList consumeOpenGLUpdateInfos(bool *allDirty);
 
     PIXELFORGE_QML_QT_PROPERTY(QSizeF, documentSize, DocumentSize)
     PIXELFORGE_QML_VALUE_PROPERTY(qreal, zoom, Zoom)
@@ -56,20 +59,12 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
 
 private:
-    ObjectId nextObjectId();
-    BaseObject *objectById(ObjectId id);
-    const BaseObject *objectById(ObjectId id) const;
-    BaseObject *hitTestObject(const QPointF &canvasPoint);
     void setSelectedObjectId(ObjectId id);
-    void clearObjects();
-    void addObject(std::unique_ptr<BaseObject> object);
-    void markAllSceneDirty();
-    void markSceneDirty(const QRectF &sceneRect);
-    void markObjectDirty(const QRectF &beforeBounds, const QRectF &afterBounds);
     void updateViewportTransform();
     void updateInteractionState();
 
-    CanvasObject m_canvas;
+    CanvasDocument m_document;
+    CanvasProjection m_projection;
     QTransform m_viewportTransform;
     qreal m_zoom {1.0};
     QPointF m_contentOffset;
@@ -79,11 +74,6 @@ private:
     QPointF m_lastPanPosition;
     QPointF m_lastObjectMoveCanvasPosition;
     QPointF m_objectGrabLocalPosition;
-    ObjectId m_selectedObjectId {InvalidObjectId};
-    ObjectId m_nextObjectId {1};
-    CanvasObjectList m_objects;
-    bool m_allCanvasDirty {true};
-    SceneDirtyRectList m_dirtySceneRects;
 };
 
 }

@@ -19,9 +19,7 @@ class QPointF;
 
 namespace PixelForge {
 
-class BaseObject;
 class CanvasTextureTile;
-class ImageObject;
 
 class CanvasRenderer final : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions
 {
@@ -40,17 +38,18 @@ private:
     void drawTiles();
     void drawTile(const CanvasTextureTile &tile, int tileIndex);
     void drawImageObjects();
-    void drawImageObject(const BaseObject &object);
-    void uploadImageObjectTexture(const ImageObject &object);
+    void drawImageObject(const CanvasImageRenderSnapshot &snapshot);
+    void uploadImageObjectTexture(const CanvasImageRenderSnapshot &snapshot);
     void pruneImageTextureCache();
     QMatrix4x4 sceneToClipMatrix() const;
-    QMatrix4x4 objectToClipMatrix(const BaseObject &object) const;
+    QMatrix4x4 imageToClipMatrix(const CanvasImageRenderSnapshot &snapshot) const;
 
     struct ImageTexture
     {
         unsigned int textureId {0};
         QSize size;
         QRectF localBounds;
+        qint64 contentKey {0};
         bool geometryDirty {true};
     };
 

@@ -87,10 +87,14 @@ set(PIXELFORGE_SOURCES
     App/Canvas/Render/CanvasRender.h
     App/Canvas/Render/CanvasRenderer.cpp
     App/Canvas/Render/CanvasRenderer.h
+    App/Canvas/Render/CanvasOpenGLUpdateInfoBuilder.cpp
+    App/Canvas/Render/CanvasOpenGLUpdateInfoBuilder.h
     App/Canvas/Render/CanvasTextureTile.cpp
     App/Canvas/Render/CanvasTextureTile.h
     App/Canvas/Render/CanvasTileCache.cpp
     App/Canvas/Render/CanvasTileCache.h
+    App/Canvas/Render/CanvasUpdatesCompressor.cpp
+    App/Canvas/Render/CanvasUpdatesCompressor.h
     App/Canvas/Render/CanvasTypes.hpp
     App/Canvas/Object/BaseObject.cpp
     App/Canvas/Object/BaseObject.h
@@ -101,6 +105,10 @@ set(PIXELFORGE_SOURCES
     App/Canvas/Object/ObjectTypes.hpp
     App/Canvas/Object/PathObject.cpp
     App/Canvas/Object/PathObject.h
+    App/Canvas/CanvasDocument.cpp
+    App/Canvas/CanvasDocument.h
+    App/Canvas/CanvasProjection.cpp
+    App/Canvas/CanvasProjection.h
     App/Canvas/Common.cpp
     App/Canvas/Common.hpp
     Utils/Logger.cpp
@@ -126,10 +134,14 @@ set(PIXELFORGE_LOCAL_SOURCES
     App/Canvas/Render/CanvasRender.h
     App/Canvas/Render/CanvasRenderer.cpp
     App/Canvas/Render/CanvasRenderer.h
+    App/Canvas/Render/CanvasOpenGLUpdateInfoBuilder.cpp
+    App/Canvas/Render/CanvasOpenGLUpdateInfoBuilder.h
     App/Canvas/Render/CanvasTextureTile.cpp
     App/Canvas/Render/CanvasTextureTile.h
     App/Canvas/Render/CanvasTileCache.cpp
     App/Canvas/Render/CanvasTileCache.h
+    App/Canvas/Render/CanvasUpdatesCompressor.cpp
+    App/Canvas/Render/CanvasUpdatesCompressor.h
     App/Canvas/Render/CanvasTypes.hpp
     App/Canvas/Object/BaseObject.cpp
     App/Canvas/Object/BaseObject.h
@@ -140,6 +152,10 @@ set(PIXELFORGE_LOCAL_SOURCES
     App/Canvas/Object/ObjectTypes.hpp
     App/Canvas/Object/PathObject.cpp
     App/Canvas/Object/PathObject.h
+    App/Canvas/CanvasDocument.cpp
+    App/Canvas/CanvasDocument.h
+    App/Canvas/CanvasProjection.cpp
+    App/Canvas/CanvasProjection.h
     App/Canvas/Common.cpp
     App/Canvas/Common.hpp
     Utils/Logger.cpp

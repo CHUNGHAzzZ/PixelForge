@@ -1,13 +1,8 @@
 #include "CanvasTileCache.h"
 
-#include "App/Canvas/Object/BaseObject.h"
-#include "App/Canvas/Object/CanvasObject.h"
 #include "App/Canvas/Render/CanvasTypes.hpp"
 #include "Utils/Logger.h"
 
-#include <QImage>
-#include <QPainter>
-#include <QPen>
 #include <QtGlobal>
 
 #include <algorithm>
@@ -41,6 +36,8 @@ void CanvasTileCache::ensureTiles(const QRect &cacheBounds, QOpenGLFunctions *fu
 
     const int columns = (m_cacheBounds.width() + m_textureInfo.effectiveWidth - 1) / m_textureInfo.effectiveWidth;
     const int rows = (m_cacheBounds.height() + m_textureInfo.effectiveHeight - 1) / m_textureInfo.effectiveHeight;
+    m_columns = columns;
+    m_rows = rows;
     m_tiles.reserve(static_cast<size_t>(columns * rows));
 
     Logger::info(formatLogMessage(
@@ -102,21 +99,28 @@ void CanvasTileCache::markDirty(const SceneDirtyRectList &sceneRects)
     }
 }
 
-void CanvasTileCache::updateDirtyTiles(
-    const CanvasObject &canvas,
-    const CanvasObjectList &objects,
-    ObjectId selectedObjectId)
+void CanvasTileCache::recalculateCache(const CanvasOpenGLUpdateInfoList &updateInfos)
 {
     int updatedTileCount = 0;
-    for (auto &tile : m_tiles) {
-        if (tile.isDirty()) {
-            uploadTile(tile, canvas, objects, selectedObjectId);
+    int updatedPatchCount = 0;
+    for (const CanvasOpenGLUpdateInfo &updateInfo : updateInfos) {
+        for (const CanvasTextureTileUpdateInfo &tileInfo : updateInfo.tileList) {
+            CanvasTextureTile *tile = textureTile(tileInfo.column, tileInfo.row);
+            if (!tile) {
+                continue;
+            }
+
+            tile->update(tileInfo);
             ++updatedTileCount;
+            ++updatedPatchCount;
         }
     }
 
     if (updatedTileCount > 0) {
-        Logger::debug(formatLogMessage("Updated %d dirty canvas texture tiles", updatedTileCount));
+        Logger::debug(formatLogMessage(
+            "Recalculated canvas texture cache: updates=%d patches=%d",
+            static_cast<int>(updateInfos.size()),
+            updatedPatchCount));
     }
 }
 
@@ -125,6 +129,8 @@ void CanvasTileCache::destroy()
     m_tiles.clear();
     m_cacheBounds = QRect();
     m_textureInfo = CanvasTileTextureInfo();
+    m_columns = 0;
+    m_rows = 0;
 }
 
 const std::vector<CanvasTextureTile> &CanvasTileCache::tiles() const
@@ -137,54 +143,18 @@ const QRect &CanvasTileCache::cacheBounds() const
     return m_cacheBounds;
 }
 
-void CanvasTileCache::uploadTile(
-    CanvasTextureTile &tile,
-    const CanvasObject &canvas,
-    const CanvasObjectList &objects,
-    ObjectId selectedObjectId)
+CanvasTextureTile *CanvasTileCache::textureTile(int column, int row)
 {
-    const CanvasTileTextureLayout &layout = tile.textureLayout();
-    QImage image(layout.textureSize, QImage::Format_RGBA8888);
-    image.fill(Qt::transparent);
-
-    QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, false);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    painter.translate(layout.border, layout.border);
-    painter.translate(-layout.sceneRect.topLeft());
-    painter.setClipRect(layout.updateSceneRect);
-
-    canvas.paintBoard(painter);
-    for (const auto &object : objects) {
-        if (!object || !object->canvasBounds().intersects(layout.updateSceneRect)) {
-            continue;
-        }
-
-        if (object->type() == ObjectType::Image) {
-            continue;
-        }
-
-        object->paint(painter);
+    if (column < 0 || row < 0 || column >= m_columns || row >= m_rows) {
+        return nullptr;
     }
 
-    for (const auto &object : objects) {
-        if (!object || object->id() != selectedObjectId || !object->canvasBounds().intersects(layout.updateSceneRect)) {
-            continue;
-        }
-
-        if (object->type() == ObjectType::Image) {
-            continue;
-        }
-
-        QPen selectionPen(QColor(QStringLiteral("#4B7BEC")), 1.5);
-        selectionPen.setCosmetic(true);
-        painter.setPen(selectionPen);
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRect(object->canvasBounds().adjusted(0.75, 0.75, -0.75, -0.75));
+    const size_t index = static_cast<size_t>(row * m_columns + column);
+    if (index >= m_tiles.size()) {
+        return nullptr;
     }
-    painter.end();
 
-    tile.upload(image, layout.contentTextureRect);
+    return &m_tiles[index];
 }
 
 }
