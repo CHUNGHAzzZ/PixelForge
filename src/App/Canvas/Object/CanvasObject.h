@@ -52,11 +52,11 @@ private:
     QSizeF m_size {1024.0, 768.0};
     int m_gridSize {16};
     bool m_gridVisible {true};
-    QColor m_backgroundColor {QStringLiteral("#111315")};
+    QColor m_backgroundColor {QStringLiteral("#F1F0F2")};
     QColor m_color {QStringLiteral("#FFFFFF")};
-    QColor m_gridColorA {QStringLiteral("#F7F8FA")};
-    QColor m_gridColorB {QStringLiteral("#E1E4E8")};
-    QColor m_borderColor {QStringLiteral("#30343A")};
+    QColor m_gridColorA {QStringLiteral("#F1F0F2")};
+    QColor m_gridColorB {QStringLiteral("#F1F0F2")};
+    QColor m_borderColor {QStringLiteral("#F1F0F2")};
 };
 
 }

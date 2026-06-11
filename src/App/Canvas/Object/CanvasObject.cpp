@@ -142,22 +142,16 @@ void CanvasObject::paintLocal(QPainter &painter) const
     painter.fillRect(bounds, m_color);
 
     if (m_gridVisible) {
-        const int columns = static_cast<int>(std::ceil(bounds.width() / tileSize));
-        const int rows = static_cast<int>(std::ceil(bounds.height() / tileSize));
+        QPen gridPen(m_gridColorA, 1.0);
+        gridPen.setCosmetic(true);
+        painter.setPen(gridPen);
 
-        for (int row = 0; row < rows; ++row) {
-            for (int column = 0; column < columns; ++column) {
-                const QColor &color = ((row + column) % 2 == 0) ? m_gridColorA : m_gridColorB;
-                const QRectF tile(
-                    bounds.left() + column * tileSize,
-                    bounds.top() + row * tileSize,
-                    std::min<qreal>(tileSize, bounds.right() - (bounds.left() + column * tileSize)),
-                    std::min<qreal>(tileSize, bounds.bottom() - (bounds.top() + row * tileSize)));
+        for (qreal x = bounds.left() + tileSize; x < bounds.right(); x += tileSize) {
+            painter.drawLine(QPointF(x, bounds.top()), QPointF(x, bounds.bottom()));
+        }
 
-                if (tile.width() > 0.0 && tile.height() > 0.0) {
-                    painter.fillRect(tile, color);
-                }
-            }
+        for (qreal y = bounds.top() + tileSize; y < bounds.bottom(); y += tileSize) {
+            painter.drawLine(QPointF(bounds.left(), y), QPointF(bounds.right(), y));
         }
     }
 

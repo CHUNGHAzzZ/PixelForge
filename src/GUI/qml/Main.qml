@@ -9,7 +9,7 @@ Window {
     minimumWidth: 960
     minimumHeight: 640
     visible: true
-    color: "#202225"
+    color: "#FFFFFF"
     title: appController.documentName + " - PixelForge"
 
     function importDroppedFile(urls, canvasView) {
@@ -31,7 +31,7 @@ Window {
         anchors.right: parent.right
         anchors.top: parent.top
         height: 36
-        color: "#2C2F33"
+        color: "#FFFFFF"
 
         Row {
             anchors.left: parent.left
@@ -44,7 +44,7 @@ Window {
 
                 Text {
                     text: modelData
-                    color: "#E6E8EB"
+                    color: "#1F2328"
                     font.pixelSize: 13
                 }
             }
@@ -57,7 +57,7 @@ Window {
         anchors.right: parent.right
         anchors.top: menuBar.bottom
         height: 48
-        color: "#25282C"
+        color: "#FFFFFF"
 
         Row {
             anchors.left: parent.left
@@ -72,13 +72,13 @@ Window {
                     width: 32
                     height: 32
                     radius: 4
-                    color: index === 0 ? "#4B7BEC" : "#34383D"
-                    border.color: "#4A4F57"
+                    color: index === 0 ? "#F1F0F2" : "#FFFFFF"
+                    border.color: "#D8D7DB"
 
                     Text {
                         anchors.centerIn: parent
                         text: modelData
-                        color: "#FFFFFF"
+                        color: "#1F2328"
                         font.bold: true
                         font.pixelSize: 13
                     }
@@ -93,8 +93,8 @@ Window {
         anchors.top: toolBar.bottom
         anchors.bottom: statusBar.top
         width: 56
-        color: "#2B2E33"
-        border.color: "#1D1F22"
+        color: "#FFFFFF"
+        border.color: "#E5E4E8"
 
         Column {
             anchors.top: parent.top
@@ -109,8 +109,8 @@ Window {
                     width: 34
                     height: 34
                     radius: 4
-                    color: index === 0 ? "#4B7BEC" : "#363A40"
-                    border.color: "#50565F"
+                    color: index === 0 ? "#F1F0F2" : "#FFFFFF"
+                    border.color: "#D8D7DB"
                 }
             }
         }
@@ -122,8 +122,8 @@ Window {
         anchors.top: toolBar.bottom
         anchors.bottom: statusBar.top
         width: 280
-        color: "#2B2E33"
-        border.color: "#1D1F22"
+        color: "#FFFFFF"
+        border.color: "#E5E4E8"
 
         Column {
             anchors.fill: parent
@@ -132,7 +132,7 @@ Window {
 
             Text {
                 text: "Layers"
-                color: "#F0F2F5"
+                color: "#1F2328"
                 font.pixelSize: 14
                 font.bold: true
             }
@@ -141,22 +141,22 @@ Window {
                 width: parent.width
                 height: 42
                 radius: 4
-                color: "#393E46"
-                border.color: "#515862"
+                color: "#FFFFFF"
+                border.color: "#D8D7DB"
 
                 Text {
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.leftMargin: 12
                     text: "Background"
-                    color: "#ECEFF4"
+                    color: "#1F2328"
                     font.pixelSize: 13
                 }
             }
 
             Text {
                 text: "Brush"
-                color: "#F0F2F5"
+                color: "#1F2328"
                 font.pixelSize: 14
                 font.bold: true
             }
@@ -165,13 +165,13 @@ Window {
                 width: parent.width
                 height: 6
                 radius: 3
-                color: "#555C66"
+                color: "#E5E4E8"
 
                 Rectangle {
                     width: parent.width * 0.45
                     height: parent.height
                     radius: 3
-                    color: "#4B7BEC"
+                    color: "#C7C5CC"
                 }
             }
         }
@@ -183,7 +183,7 @@ Window {
         anchors.right: rightPanel.left
         anchors.top: toolBar.bottom
         anchors.bottom: statusBar.top
-        color: "#1B1D20"
+        color: "#FFFFFF"
 
         CanvasRender {
             id: canvas
@@ -208,8 +208,8 @@ Window {
         Rectangle {
             anchors.fill: parent
             visible: fileDropArea.containsDrag
-            color: "#66000000"
-            border.color: "#6EA8FF"
+            color: "#55F1F0F2"
+            border.color: "#C7C5CC"
             border.width: 2
 
             Rectangle {
@@ -217,13 +217,13 @@ Window {
                 width: Math.min(parent.width - 48, 360)
                 height: 96
                 radius: 6
-                color: "#2F343A"
-                border.color: "#6EA8FF"
+                color: "#FFFFFF"
+                border.color: "#D8D7DB"
 
                 Text {
                     anchors.centerIn: parent
                     text: "Drop file to import"
-                    color: "#F4F7FB"
+                    color: "#1F2328"
                     font.pixelSize: 18
                     font.bold: true
                 }
@@ -237,14 +237,14 @@ Window {
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         height: 28
-        color: "#25282C"
+        color: "#FFFFFF"
 
         Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 12
             text: "Ready"
-            color: "#B8BEC7"
+            color: "#1F2328"
             font.pixelSize: 12
         }
     }
